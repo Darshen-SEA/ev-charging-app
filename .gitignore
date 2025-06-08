@@ -181,6 +181,7 @@ ClientBin/
 orleans.codegen.cs
 
 /node_modules
+/ClientApp/.env
 
 # RIA/Silverlight projects
 Generated_Code/
@@ -199,6 +200,10 @@ UpgradeLog*.htm
 
 # Business Intelligence projects
 *.rdl.data
+
+# Environment-specific files
+ClientApp/.env
+
 *.bim.layout
 *.bim_*.settings
 
