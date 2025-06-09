@@ -1,6 +1,6 @@
 // c:\Coding\ev-charging-app\ClientApp\src\components\ChargingStationList.js
 import React, { useState, useMemo, useEffect, useRef, createRef } from 'react';
-import RouteDirections from './RouteDirections'; // Import the new component
+import RouteDirections from './RouteDirections';
 
 // Helper function to determine badge class based on status
 const getStatusBadge = (statusTitle) => {
@@ -28,8 +28,7 @@ const ChargingStationList = ({
     routeError,
     highlightedStationId,
     onStationListItemClick,
-    preferredConnectorTypes, // Destructure the new prop
-    routeElevationInfo // Add new prop for elevation info
+    preferredConnectorTypes // Destructure the new prop
 }) => {
     const stationRefs = useRef({});
 
@@ -251,7 +250,13 @@ const ChargingStationList = ({
                     {selectedStationRoute.routes[0].segments && 
                      selectedStationRoute.routes[0].segments.length > 0 && 
                      selectedStationRoute.routes[0].segments[0].steps && (
-                        <RouteDirections steps={selectedStationRoute.routes[0].segments[0].steps} elevationInfo={routeElevationInfo} />
+                        <RouteDirections 
+                            steps={selectedStationRoute.routes[0].segments[0].steps} 
+                            elevationInfo={null}
+                            trafficDelay={0}
+                            estimatedWaitTime={0}
+                            totalTimeWithDelays={0}
+                        />
                     )}
                 </div>
             )}

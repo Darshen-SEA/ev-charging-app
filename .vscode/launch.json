@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch .NET Core",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "dotnet",
+            "windows": {
+                "runtimeExecutable": "dotnet.exe"
+            },
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}\\bin\\Debug\\net6.0\\MyReactApp.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Launch Chrome for React",
+            "type": "chrome",
+            "request": "launch",
+            "url": "https://localhost:7109",
+            "webRoot": "${workspaceFolder}/ClientApp"
+        }
+    ]
+}

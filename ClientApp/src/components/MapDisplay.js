@@ -1,8 +1,15 @@
-// c:\Coding\ev-charging-app\ClientApp\src\components\MapDisplay.js
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { 
+  MapContainer, 
+  TileLayer, 
+  Marker, 
+  Popup, 
+  useMap, 
+  LayersControl, 
+  GeoJSON 
+} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet'; // Import L to fix marker icon issue
+import L from 'leaflet';
 
 // Fix for default marker icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -11,10 +18,6 @@ L.Icon.Default.mergeOptions({
     iconUrl: require('leaflet/dist/images/marker-icon.png'),
     shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
-
-import React, { useState, useEffect, useRef } from 'react'; // Added useState, useEffect, useRef
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, Circle, LayersControl } from 'react-leaflet';
-import L from 'leaflet'; // Import L for latLngBounds and other Leaflet utilities
 
 // Custom User Location Icon
 // Component to handle map panning/zooming when mapFocusCoordinates change

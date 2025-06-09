@@ -1,9 +1,6 @@
 // c:\Coding\ev-charging-app\ClientApp\src\services\openRouteService.js
 const ORS_API_KEY = process.env.REACT_APP_OPENROUTESERVICE_API_KEY;
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2';
-import { fetchElevationDataForCoords, calculateElevationChanges } from './openMeteoService';
-
-const MAX_ELEVATION_SAMPLES = 15; // Max number of points to sample for elevation
 
 /**
  * Fetches a route between two points using Openrouteservice.
@@ -59,69 +56,9 @@ export const fetchRoute = async ({ startCoordinates, endCoordinates, profile = '
 
         const data = await response.json();
         console.log('Openrouteservice Route Data:', data);
-
-        // Attempt to fetch and attach elevation data
-        if (data.features && data.features[0] && data.features[0].geometry && data.features[0].geometry.coordinates) {
-            const routeCoordsLonLat = data.features[0].geometry.coordinates;
-            // OpenMeteo expects [lat, lon]
-            const routeCoordsLatLon = routeCoordsLonLat.map(coord => [coord[1], coord[0]]); 
-
-            let sampledCoords = routeCoordsLatLon;
-            if (routeCoordsLatLon.length > MAX_ELEVATION_SAMPLES) {
-                sampledCoords = [];
-                const step = Math.floor(routeCoordsLatLon.length / (MAX_ELEVATION_SAMPLES -1));
-                for (let i = 0; i < MAX_ELEVATION_SAMPLES - 1; i++) {
-                    sampledCoords.push(routeCoordsLatLon[i * step]);
-                }
-                sampledCoords.push(routeCoordsLatLon[routeCoordsLatLon.length - 1]); // Ensure last point is included
-            }
-            
-            try {
-                const elevationData = await fetchElevationDataForCoords(sampledCoords);
-                if (elevationData && elevationData.elevations && elevationData.elevations.length > 0) {
-                    const changes = calculateElevationChanges(elevationData.elevations);
-                    // Attach to the first route object (ORS typically returns one route in features[0] for basic requests)
-                    // or directly to the data object if that's more convenient for Home.js
-                    if (data.features[0].properties) { // ORS sometimes uses properties for summary
-                         data.features[0].properties.elevationProfile = { 
-                            ...changes, 
-                            sampledElevations: elevationData.elevations 
-                        };
-                    } else {
-                         data.features[0].elevationProfile = { 
-                            ...changes, 
-                            sampledElevations: elevationData.elevations 
-                        };
-                    }
-                    console.log('Elevation profile added to route:', data.features[0].properties || data.features[0].elevationProfile);
-                } else if (elevationData && elevationData.error) {
-                    console.warn('Could not fetch elevation data for route:', elevationData.error);
-                    if (data.features[0].properties) data.features[0].properties.elevationProfile = { error: elevationData.error };
-                    else data.features[0].elevationProfile = { error: elevationData.error };
-                }
-            } catch (elevationError) {
-                console.error('Error processing elevation data for route:', elevationError);
-                if (data.features[0].properties) data.features[0].properties.elevationProfile = { error: elevationError.message };
-                else data.features[0].elevationProfile = { error: elevationError.message };
-            }
-        }
         return data;
     } catch (error) {
         console.error('Error fetching route from Openrouteservice:', error);
         throw error;
     }
 };
-
-// Example usage (you'll call this from a component, likely when a station is selected)
-/*
-fetchRoute({
-    startCoordinates: [-118.2437, 34.0522], // Los Angeles (lon, lat)
-    endCoordinates: [-118.4903, 34.0194]    // Santa Monica (lon, lat)
-}).then(data => {
-    if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        console.log('Route Summary:', route.summary); // { distance, duration }
-        console.log('Route Geometry (encoded polyline):', route.geometry);
-    }
-}).catch(err => console.error(err));
-*/

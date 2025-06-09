@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ChargingStationList from './ChargingStationList';
 import UserInputForm from './UserInputForm';
 import MapDisplay from './MapDisplay'; // Import MapDisplay
+import RouteDirections from './RouteDirections';
 import { fetchTrafficFlow } from '../services/tomTomService';
 import { fetchChargingStations } from '../services/openChargeMapService';
 import { fetchRoute } from '../services/openRouteService'; // Import fetchRoute for Home.js
@@ -172,13 +173,63 @@ const Home = () => {
   };
 
   // Handler for when a station is selected in ChargingStationList to get a route
+  const estimateWaitTime = (station) => {
+    if (!station.Connections || station.Connections.length === 0) return 0;
+    
+    // Calculate available connectors
+    const availableConnectors = station.Connections.reduce((total, conn) => {
+      const isAvailable = conn.StatusType?.IsOperational && 
+                         !conn.StatusType.Title.toLowerCase().includes('in use');
+      return total + (isAvailable ? (conn.Quantity || 1) : 0);
+    }, 0);
+
+    // Calculate total connectors
+    const totalConnectors = station.Connections.reduce(
+      (total, conn) => total + (conn.Quantity || 1), 0
+    );
+
+    // Base wait time based on availability (in minutes)
+    let waitTime = 0;
+    const availabilityRatio = availableConnectors / totalConnectors;
+    
+    if (availabilityRatio < 0.2) waitTime = 45; // Very busy
+    else if (availabilityRatio < 0.5) waitTime = 20; // Busy
+    else if (availabilityRatio < 0.8) waitTime = 10; // Some availability
+    // else 0 minutes wait
+
+    // Adjust based on time of day (example: peak hours)
+    const now = new Date();
+    const hour = now.getHours();
+    if ((hour >= 7 && hour < 10) || (hour >= 16 && hour < 19)) {
+      waitTime = Math.ceil(waitTime * 1.5); // 50% longer wait during peak hours
+    }
+
+    return waitTime;
+  };
+
+  const handleStationMarkerClick = (station) => {
+    console.log("Home.js: Station marker clicked:", station);
+    setHighlightedStationId(station.ID);
+    // Optional: Pan map to this station if not already focused
+    // setMapFocusCoordinates([station.AddressInfo.Latitude, station.AddressInfo.Longitude]);
+  };
+
+  // Handle when a station is clicked in the list
+  const handleStationListItemClick = (station) => {
+    setHighlightedStationId(station.ID);
+    setMapFocusCoordinates([station.AddressInfo.Latitude, station.AddressInfo.Longitude]);
+  };
+
+  // Handle route request to a station
   const handleStationRouteRequest = async (station) => {
     if (!searchParams.latitude || !searchParams.longitude) {
       setRouteError("Your current location is not available to calculate a route.");
       setSelectedStationRoute(null);
       return;
     }
-    if (!station.AddressInfo || typeof station.AddressInfo.Longitude !== 'number' || typeof station.AddressInfo.Latitude !== 'number') {
+    
+    if (!station.AddressInfo || typeof station.AddressInfo.Longitude !== 'number' || 
+        typeof station.AddressInfo.Latitude !== 'number') {
       setRouteError("Selected station does not have valid coordinates for routing.");
       setSelectedStationRoute(null);
       return;
@@ -189,118 +240,59 @@ const Home = () => {
     setRouteError(null); // Clear previous error
 
     try {
-      const startLon = parseFloat(searchParams.longitude);
-      const startLat = parseFloat(searchParams.latitude);
-      const endLon = parseFloat(station.AddressInfo.Longitude);
-      const endLat = parseFloat(station.AddressInfo.Latitude);
-
-      if (isNaN(startLon) || isNaN(startLat) || isNaN(endLon) || isNaN(endLat)) {
-        throw new Error("Invalid coordinate format for routing.");
-      }
-
-      // Assuming fetchRoute is imported or available here
-      // For now, we'll need to import it in Home.js
-      const routeData = await fetchRoute({ // fetchRoute would need to be imported from '../services/openRouteService'
-        startCoordinates: [startLon, startLat],
-        endCoordinates: [endLon, endLat],
+      // Get the route from user's location to the station
+      const routeData = await fetchRoute({
+        startCoordinates: [searchParams.longitude, searchParams.latitude],
+        endCoordinates: [station.AddressInfo.Longitude, station.AddressInfo.Latitude],
+        profile: 'driving-car',
       });
 
-      if (routeData && routeData.routes && routeData.routes.length > 0) {
-        setSelectedStationRoute(routeData);
-      } else {
-        setRouteError("No route found to the selected station by Openrouteservice.");
-      }
-    } catch (err) {
-      console.error("Home.js: Failed to fetch route for station:", station.ID, err);
-      setRouteError(err.message || "Failed to fetch route in Home.js.");
-    } finally {
-      setRouteLoadingForStationId(null);
-    }
-  };
-
-  const getRouteForStation = async (stationInput) => {
-    let station;
-    if (typeof stationInput === 'object' && stationInput !== null && stationInput.ID) {
-      station = stationInput;
-    } else { // stationInput is an ID
-      station = stations.find(s => s.ID === stationInput);
-    }
-
-    if (!station) {
-      console.error('Station not found for routing:', stationInput);
-      setRouteError('Station details not found.');
-      setRouteLoadingForStationId(null);
-      return;
-    }
-
-    setRouteLoadingForStationId(station.ID);
-    setRouteError(null);
-    setSelectedStationRoute(null);
-
-    try {
-      const startLon = parseFloat(searchParams.longitude);
-      const startLat = parseFloat(searchParams.latitude);
-      const endLon = parseFloat(station.AddressInfo.Longitude);
-      const endLat = parseFloat(station.AddressInfo.Latitude);
-
-      if (isNaN(startLon) || isNaN(startLat) || isNaN(endLon) || isNaN(endLat)) {
-        throw new Error("Invalid coordinate format for routing.");
-      }
-
-      const routeData = await fetchRoute({ 
-        startCoordinates: [startLon, startLat],
-        endCoordinates: [endLon, endLat],
-      });
-
-      let elevationMessage = null;
-      if (routeData.features && routeData.features[0] && routeData.features[0].properties && routeData.features[0].properties.elevationProfile) {
-        const profile = routeData.features[0].properties.elevationProfile;
-        if (profile.error) {
-          elevationMessage = `Note: Could not retrieve elevation data for this route (${profile.error}).`;
-        } else if (typeof profile.totalAscent === 'number' && typeof profile.totalDescent === 'number') {
-          if (profile.totalAscent > 100 || profile.totalDescent > 100) { // Threshold for significant change, e.g., 100m
-            elevationMessage = `Route Elevation: Ascent: ${profile.totalAscent.toFixed(0)}m, Descent: ${profile.totalDescent.toFixed(0)}m. This may impact range.`;
+      if (routeData && routeData.features && routeData.features.length > 0) {
+        // Calculate traffic delay if we have traffic data
+        let trafficDelay = 0;
+        if (trafficData && routeData.features[0]?.geometry?.coordinates) {
+          const { calculateTrafficDelay } = await import('../services/tomTomService');
+          trafficDelay = calculateTrafficDelay(
+            routeData.features[0].geometry.coordinates,
+            trafficData
+          );
+          
+          if (trafficDelay > 0) {
+            // Update the route duration with traffic delay
+            const route = routeData.features[0].properties;
+            route.duration += trafficDelay * 60; // Convert minutes to seconds
+            if (route.summary) {
+              route.summary.duration += trafficDelay * 60;
+            }
           }
         }
-      }
-      setRouteElevationInfo(elevationMessage);
 
-      if (routeData && routeData.routes && routeData.routes.length > 0) {
-        setSelectedStationRoute(routeData);
+
+        // Calculate estimated wait time at the station
+        const waitTime = estimateWaitTime(station);
+        
+        // Add traffic and wait time information to the route data
+        const enhancedRouteData = {
+          ...routeData,
+          trafficDelay,
+          estimatedWaitTime: waitTime,
+          totalTimeWithDelays: (routeData.features[0].properties.duration / 60) + trafficDelay + waitTime
+        };
+
+        setSelectedStationRoute(enhancedRouteData);
+        setMapFocusCoordinates({
+          lat: station.AddressInfo.Latitude,
+          lng: station.AddressInfo.Longitude
+        });
       } else {
-        setRouteError("No route found to the selected station by Openrouteservice.");
+        setRouteError("No route found to the selected station.");
       }
-    } catch (err) {
-      console.error("Home.js: Failed to fetch route for station:", station.ID, err);
-      setRouteError(`Failed to fetch route for station ${station.ID}.`);
+    } catch (error) {
+      console.error('Error getting route to station:', error);
+      setRouteError(error.message || 'Failed to get route to station');
     } finally {
       setRouteLoadingForStationId(null);
     }
-  };
-
-  const handleHighlightStation = (stationId, stationLat = null, stationLng = null) => {
-    setHighlightedStationId(stationId);
-    if (stationLat !== null && stationLng !== null) {
-      setMapFocusCoordinates([stationLat, stationLng]);
-    } else {
-      const station = stations.find(s => s.ID === stationId);
-      if (station) {
-        setMapFocusCoordinates([station.AddressInfo.Latitude, station.AddressInfo.Longitude]);
-      }
-    }
-  };
-
-  // Specific handler for list item click to ensure map focus
-  const handleStationListItemClick = (station) => {
-    setHighlightedStationId(station.ID);
-    setMapFocusCoordinates([station.AddressInfo.Latitude, station.AddressInfo.Longitude]);
-  };
-
-  const handleStationMarkerClick = (station) => {
-    console.log("Home.js: Station marker clicked:", station);
-    setHighlightedStationId(station.ID);
-    // Optional: Pan map to this station if not already focused
-    // setMapFocusCoordinates([station.AddressInfo.Latitude, station.AddressInfo.Longitude]);
   };
 
   return (
@@ -348,22 +340,35 @@ const Home = () => {
       {stationsLoading && searchParams.latitude && <p><em>Loading charging stations...</em></p>}
       {stationsError && <p style={{ color: 'red' }}>Stations Error: {stationsError}</p>}
       {!isLocating && !stationsLoading && searchParams.latitude && searchParams.longitude && (
-        <ChargingStationList
-            stations={stations} // Pass all stations fetched (potentially pre-filtered by API for minPower)
-            // We will add client-side filtering for preferredConnectorTypes within ChargingStationList or here before passing down
-            // For now, pass the preference to ChargingStationList to handle
-            preferredConnectorTypes={searchParams.preferredConnectorTypes} 
-            searchParams={searchParams} 
-            isLoadingStations={stationsLoading} 
-            stationsError={stationsError}
-            // Props for route handling
-            onStationRouteRequest={handleStationRouteRequest} 
-            selectedStationRoute={selectedStationRoute}
-            routeLoadingForStationId={routeLoadingForStationId}
-            routeError={routeError}
-            highlightedStationId={highlightedStationId} 
-            onStationListItemClick={handleStationListItemClick}
-            routeElevationInfo={routeElevationInfo} />
+        <>
+          <ChargingStationList
+              stations={stations}
+              preferredConnectorTypes={searchParams.preferredConnectorTypes} 
+              searchParams={searchParams} 
+              isLoadingStations={stationsLoading} 
+              stationsError={stationsError}
+              onStationRouteRequest={handleStationRouteRequest} 
+              selectedStationRoute={selectedStationRoute}
+              routeLoadingForStationId={routeLoadingForStationId}
+              routeError={routeError}
+              highlightedStationId={highlightedStationId} 
+              onStationListItemClick={handleStationListItemClick}
+              routeElevationInfo={routeElevationInfo}
+          />
+          
+          {selectedStationRoute?.routes?.[0]?.segments?.[0]?.steps && (
+            <div className="mt-4">
+              <h3>Route Details</h3>
+              <RouteDirections 
+                steps={selectedStationRoute.routes[0].segments[0].steps} 
+                elevationInfo={routeElevationInfo}
+                trafficDelay={selectedStationRoute.trafficDelay || 0}
+                estimatedWaitTime={selectedStationRoute.estimatedWaitTime || 0}
+                totalTimeWithDelays={selectedStationRoute.totalTimeWithDelays || 0}
+              />
+            </div>
+          )}
+        </>
       )}
       {!isLocating && !searchParams.latitude && (
         <p>Enter address or allow location access to see stations.</p>

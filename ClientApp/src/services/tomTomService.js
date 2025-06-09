@@ -52,6 +52,63 @@ export const fetchTrafficFlow = async ({ north, south, east, west, zoom = 12 }) 
     }
 };
 
+/**
+ * Calculates additional travel time (in minutes) based on traffic incidents along the route
+ * @param {Array} routeCoordinates - Array of [longitude, latitude] coordinates representing the route
+ * @param {Object} trafficIncidents - Traffic incidents data from fetchTrafficFlow
+ * @returns {number} - Additional travel time in minutes
+ */
+export const calculateTrafficDelay = (routeCoordinates, trafficIncidents) => {
+    if (!trafficIncidents?.incidents || !Array.isArray(trafficIncidents.incidents)) {
+        return 0;
+    }
+
+    let totalDelay = 0;
+    const ROUTE_BUFFER_KM = 1; // 1km buffer around route to consider incidents
+    
+    trafficIncidents.incidents.forEach(incident => {
+        if (!incident?.geometry?.coordinates || !incident.properties) return;
+        
+        const [incidentLon, incidentLat] = incident.geometry.coordinates;
+        
+        // Check if incident is near the route
+        const isNearRoute = routeCoordinates.some(([routeLon, routeLat]) => {
+            const distance = getDistanceFromLatLonInKm(
+                incidentLat, incidentLon,
+                routeLat, routeLon
+            );
+            return distance <= ROUTE_BUFFER_KM;
+        });
+        
+        if (isNearRoute) {
+            // Add delay based on incident severity
+            const severity = incident.properties.magnitudeOfDelay || 0;
+            // Convert delay from seconds to minutes and scale by severity (1-4)
+            const incidentDelay = (incident.properties.delay || 0) / 60 * (severity * 0.5);
+            totalDelay += incidentDelay;
+        }
+    });
+    
+    return Math.round(totalDelay);
+};
+
+// Helper function to calculate distance between two points in kilometers
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in km
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI/180);
+}
+
 // Example usage (you'll call this from a component)
 /*
 fetchTrafficFlow({
