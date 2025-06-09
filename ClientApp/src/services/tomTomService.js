@@ -29,10 +29,10 @@ export const fetchTrafficFlow = async ({ north, south, east, west, zoom = 12 }) 
     
     // Bounding box string: minLon,minLat,maxLon,maxLat
     const bbox = `${west},${south},${east},${north}`;
-    const incidentDetailsUrl = `${TOMTOM_BASE_URL}/incidentDetails/s3/${bbox}/${zoom}/tile/json?key=${TOMTOM_API_KEY}&projection=EPSG4326`;
+    // const incidentDetailsUrl = `${TOMTOM_BASE_URL}/incidentDetails/s3/${bbox}/${zoom}/tile/json?key=${TOMTOM_API_KEY}&projection=EPSG4326`;
     // Note: The above URL might be for a specific tile format.
     // A more general incident API: /incidentDetails/s3/{minLat},{minLon},{maxLat},{maxLon}/{zoom}/json?key={API_KEY}
-    // Let's use: /incidentDetails/json?key={API_KEY}&bbox={bbox_string}&fields={tmcs_fields_string}&language={language_code}
+    // Using: /incidentDetails/json?key={API_KEY}&bbox={bbox_string}&fields={tmcs_fields_string}
     
     const url = `${TOMTOM_BASE_URL}/incidentDetails/json?key=${TOMTOM_API_KEY}&bbox=${bbox}&fields=%7Bincidents%7Btype%2Cgeometry%7Btype%2Ccoordinates%7D%2Cproperties%7BiconCategory%2CmagnitudeOfDelay%2CstartTime%2CendTime%2Cfrom%2Cto%2Clength%2Cdelay%2CroadNumbers%2Caci%7BprobabilityOfOccurrence%2CoriginalProbabilityOfOccurrence%2CnumberOfReports%7D%7D%7D%7D`;
 

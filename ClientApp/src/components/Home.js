@@ -49,7 +49,7 @@ const Home = () => {
   const [routeError, setRouteError] = useState(null);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
   const [mapFocusCoordinates, setMapFocusCoordinates] = useState(null);
-  const [routeElevationInfo, setRouteElevationInfo] = useState(null);
+  const [routeElevationInfo] = useState(null);
 
   // Function to fetch current location
   const getCurrentLocation = () => {
